@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: MIT -->
+
 # sx126x-driver
 
 A modular, platform-agnostic driver stack for SX126x-class LoRa radios.
