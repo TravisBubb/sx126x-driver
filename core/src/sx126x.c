@@ -3,6 +3,9 @@
 #include "sx126x/sx126x.h"
 #include "sx126x/hal.h"
 
+#define SX126X_LOG(config, fmt, ...) \
+    do { if ((config)->log) (config)->log(fmt, ##__VA_ARGS__); } while(0)
+
 static const uint32_t SX126X_FREQ_XTAL_HZ = 32000000; // 32 MHz
 
 // Opcodes for the SX126x-class chip.
@@ -31,6 +34,8 @@ typedef enum
 // Initialize the given radio instance
 sx126x_status_t sx126x_init(sx126x_t *radio, sx126x_hal_t *hal, sx126x_config_t *config)
 {
+  SX126X_LOG(config, "Initializing SX126x driver...");
+
   if (!radio || !hal)
   {
     return SX126X_ERR_INVALID_ARG;
@@ -92,6 +97,8 @@ sx126x_status_t sx126x_init(sx126x_t *radio, sx126x_hal_t *hal, sx126x_config_t 
   // [ ] 7. `SetPacketParams(...)`: preamble, header mode, CRC, payload length mode
   // [ ] 8. `SetDioIrqParams(...)`: map `TxDone`/`RxDone` to DIO pins
   // [ ] 9. `WriteReg(...)`: for SyncWord if a non-default is needed
+
+  SX126X_LOG(config, "SX126x driver has been initialized.");
 
   return SX126X_OK;
 }

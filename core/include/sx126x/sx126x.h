@@ -14,6 +14,11 @@
 #include "sx126x/types.h"
 
 /**
+ * @brief Function typedef for a logging callback.
+ */
+typedef void (*sx126x_log_fn_t)(const char *fmt, ...);
+
+/**
  * @brief Radio operating modes.
  */
 typedef enum
@@ -30,6 +35,7 @@ typedef enum
  */
 typedef struct
 {
+  sx126x_log_fn_t log;
   uint8_t frequency_hz;
 } sx126x_config_t;
 
