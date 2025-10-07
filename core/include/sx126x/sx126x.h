@@ -10,20 +10,8 @@
 #ifndef SX126X_H
 #define SX126X_H
 
-/**
- * @brief Status codes returned by the SX126X driver.
- */
-typedef enum
-{
-  SX126X_OK = 0,
-  SX126X_ERR_INVALID_ARG,
-  SX126X_ERR_BUSY, /* driver or radio in a state that prevents request */
-  SX126X_ERR_TIMEOUT,
-  SX126X_ERR_NO_MEM,
-  SX126X_ERR_HAL,      /* underlying HAL reported an error */
-  SX126X_ERR_NOT_INIT, /* driver not initialized */
-  SX126X_ERR_UNKNOWN,
-} sx126x_status_t;
+#include "sx126x/hal.h"
+#include "sx126x/types.h"
 
 /**
  * @brief Radio operating modes.
@@ -37,6 +25,24 @@ typedef enum
   SX126X_MODE_RX,
 } sx126x_mode_t;
 
+/**
+ * @brief Represents configuration options for the SX126x.
+ */
+typedef struct
+{
+  uint8_t frequency_hz;
+} sx126x_config_t;
+
+/**
+ * @brief Represents a LoRa radio instance.
+ */
+typedef struct
+{
+  bool is_initialized;
+  sx126x_hal_t *hal;
+  sx126x_mode_t mode;
+} sx126x_t;
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -44,15 +50,22 @@ extern "C"
 
 /**
  * @brief Initialize the SX126x driver.
+ *
+ * The caller of this function must ensure that the lifetime of the hal pointer is valid for the
+ * full lifetime of the sx126x_t struct.
+ * 
+ * @param radio Pointer to the sx126x_t to initialize.
+ * @param hal Pointer to the sx126x_hal_t to initialize the radio with.
  * @return SX126X_OK if successful, error code otherwise.
  */
-sx126x_status_t sx126x_init(void);
+sx126x_status_t sx126x_init(sx126x_t *radio, sx126x_hal_t *hal, sx126x_config_t *config);
 
 /**
  * @brief Deinitialize the SX126x driver.
+ * @param radio Pointer to the sx126x_t to deinitialize.
  * @return SX126X_OK if successful, error code otherwise.
  */
-sx126x_status_t sx126x_deinit(void);
+sx126x_status_t sx126x_deinit(sx126x_t *radio);
 
 #ifdef __cplusplus
 }
