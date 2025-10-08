@@ -1,10 +1,24 @@
 // SPDX-License-Identifier: MIT
 
 #include "sx126x/sx126x.h"
-#include "sx126x/hal.h"
+#include "sx126x/bus.h"
+#include "sx126x/types.h"
+#include <stddef.h>
+#include <stdint.h>
 
-#define SX126X_LOG(config, fmt, ...) \
-    do { if ((config)->log) (config)->log(fmt, ##__VA_ARGS__); } while(0)
+#define SX126X_LOG(bus, fmt, ...)                                                                  \
+  do                                                                                               \
+  {                                                                                                \
+    if ((bus) && (bus)->log)                                                                       \
+      (bus)->log(fmt, ##__VA_ARGS__);                                                              \
+  } while (0)
+
+sx126x_status_t sx126x_set_mode(sx126x_t *radio, sx126x_mode_t mode)
+{
+  SX126X_LOG(radio->bus, "Setting mode %d", mode);
+  uint8_t cmd[] = {0x01, (uint8_t)mode};
+  return radio->bus->write(cmd, sizeof(cmd)) ? SX126X_OK : SX126X_ERR_UNKNOWN;
+}
 
 static const uint32_t SX126X_FREQ_XTAL_HZ = 32000000; // 32 MHz
 
@@ -32,11 +46,11 @@ typedef enum
 } sx126x_packet_type_t;
 
 // Initialize the given radio instance
-sx126x_status_t sx126x_init(sx126x_t *radio, sx126x_hal_t *hal, sx126x_config_t *config)
+sx126x_status_t sx126x_init(sx126x_t *radio, sx126x_bus_t *bus, sx126x_config_t *config)
 {
-  SX126X_LOG(config, "Initializing SX126x driver...");
+  SX126X_LOG(bus, "Initializing SX126x driver...");
 
-  if (!radio || !hal)
+  if (!radio || !bus)
   {
     return SX126X_ERR_INVALID_ARG;
   }
@@ -50,15 +64,15 @@ sx126x_status_t sx126x_init(sx126x_t *radio, sx126x_hal_t *hal, sx126x_config_t 
 
   // TODO: Validate any config options in config struct
 
-  radio->hal = hal;
+  radio->bus = bus;
 
   sx126x_status_t ret;
-  uint8_t tx_byte;
   uint8_t tx_buffer[8];
 
   // Set standby mode to STDBY_RC
-  tx_byte = SX126X_STBY_RC;
-  ret = radio->hal->cmd_write(radio->hal, SX126X_OP_SET_STANDBY, &tx_byte, 1);
+  tx_buffer[0] = SX126X_OP_SET_STANDBY;
+  tx_buffer[1] = SX126X_STBY_RC;
+  ret = radio->bus->write(tx_buffer, 2);
   if (ret != SX126X_OK)
   {
     return ret;
@@ -67,8 +81,10 @@ sx126x_status_t sx126x_init(sx126x_t *radio, sx126x_hal_t *hal, sx126x_config_t 
   radio->mode = SX126X_MODE_STDBY_RC;
 
   // Set packet type to LoRa
-  tx_byte = SX126X_PACKET_TYPE_LORA;
-  ret = radio->hal->cmd_write(radio->hal, SX126X_OP_SET_PACKET_TYPE, &tx_byte, 1);
+  tx_buffer[0] = SX126X_OP_SET_PACKET_TYPE;
+  tx_buffer[1] = SX126X_PACKET_TYPE_LORA;
+  ;
+  ret = radio->bus->write(tx_buffer, 2);
   if (ret != SX126X_OK)
   {
     return ret;
@@ -81,7 +97,7 @@ sx126x_status_t sx126x_init(sx126x_t *radio, sx126x_hal_t *hal, sx126x_config_t 
   tx_buffer[2] = (frequency >> 16) & 0xFF;
   tx_buffer[3] = (frequency >> 8) & 0xFF;
   tx_buffer[4] = frequency & 0xFF;
-  ret = radio->hal->cmd_write(radio->hal, SX126X_OP_SET_RF_FREQUENCY, tx_buffer, 5);
+  ret = radio->bus->write(tx_buffer, 5);
   if (ret != SX126X_OK)
   {
     return ret;
@@ -98,7 +114,7 @@ sx126x_status_t sx126x_init(sx126x_t *radio, sx126x_hal_t *hal, sx126x_config_t 
   // [ ] 8. `SetDioIrqParams(...)`: map `TxDone`/`RxDone` to DIO pins
   // [ ] 9. `WriteReg(...)`: for SyncWord if a non-default is needed
 
-  SX126X_LOG(config, "SX126x driver has been initialized.");
+  SX126X_LOG(bus, "SX126x driver has been initialized.");
 
   return SX126X_OK;
 }

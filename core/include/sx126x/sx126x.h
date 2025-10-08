@@ -10,13 +10,8 @@
 #ifndef SX126X_H
 #define SX126X_H
 
-#include "sx126x/hal.h"
+#include "sx126x/bus.h"
 #include "sx126x/types.h"
-
-/**
- * @brief Function typedef for a logging callback.
- */
-typedef void (*sx126x_log_fn_t)(const char *fmt, ...);
 
 /**
  * @brief Radio operating modes.
@@ -35,8 +30,7 @@ typedef enum
  */
 typedef struct
 {
-  sx126x_log_fn_t log;
-  uint8_t frequency_hz;
+  uint32_t frequency_hz;
 } sx126x_config_t;
 
 /**
@@ -45,7 +39,7 @@ typedef struct
 typedef struct
 {
   bool is_initialized;
-  sx126x_hal_t *hal;
+  sx126x_bus_t *bus;
   sx126x_mode_t mode;
 } sx126x_t;
 
@@ -59,12 +53,12 @@ extern "C"
  *
  * The caller of this function must ensure that the lifetime of the hal pointer is valid for the
  * full lifetime of the sx126x_t struct.
- * 
+ *
  * @param radio Pointer to the sx126x_t to initialize.
- * @param hal Pointer to the sx126x_hal_t to initialize the radio with.
+ * @param bus Pointer to the sx126x_bus_t to initialize the radio with.
  * @return SX126X_OK if successful, error code otherwise.
  */
-sx126x_status_t sx126x_init(sx126x_t *radio, sx126x_hal_t *hal, sx126x_config_t *config);
+sx126x_status_t sx126x_init(sx126x_t *radio, sx126x_bus_t *bus, sx126x_config_t *config);
 
 /**
  * @brief Deinitialize the SX126x driver.

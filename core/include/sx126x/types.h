@@ -7,8 +7,8 @@
  * @date 2025
  */
 
- #ifndef SX126X_TYPES_H
- #define SX126X_TYPES_H
+#ifndef SX126X_TYPES_H
+#define SX126X_TYPES_H
 
 /**
  * @brief Status codes returned by the SX126X driver.
@@ -25,4 +25,4 @@ typedef enum
   SX126X_ERR_UNKNOWN,
 } sx126x_status_t;
 
- #endif // SX126X_TYPES_H
+#endif // SX126X_TYPES_H
