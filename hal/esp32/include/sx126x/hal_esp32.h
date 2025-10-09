@@ -19,6 +19,14 @@
  */
 typedef struct
 {
+  int spi_host;              /**< SPI host number */
+  int spi_mosi_pin;          /**< GPIO pin number for MOSI */
+  int spi_miso_pin;          /**< GPIO pin number for MISO */
+  int spi_sclk_pin;          /**< GPIO pin for SCLK */
+  int spi_max_transfer_size; /**< Maximum transfer size, 0 for default */
+  int spi_cs_pin;            /**< GPIO pin number for SPI chip select */
+  int spi_clock_speed_hz;    /**< SPI clock speed in Hz */
+  int spi_queue_size;        /**< SPI queue size */
 } sx126x_hal_esp32_cfg_t;
 
 /**
@@ -28,7 +36,6 @@ typedef struct sx126x_hal_s
 {
   sx126x_bus_t bus;
   sx126x_t dev;
-  volatile bool is_initialized;
   volatile bool is_running;
   volatile bool is_shutdown_requested;
   SemaphoreHandle_t spi_mutex;
