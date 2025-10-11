@@ -34,6 +34,7 @@ typedef struct
  */
 typedef struct sx126x_hal_s
 {
+  int spi_host;
   sx126x_bus_t bus;
   sx126x_t dev;
   volatile bool is_running;

@@ -10,25 +10,42 @@
 #include <stdbool.h>
 #include <string.h>
 
-typedef struct
+static sx126x_status_t esp32_spi_transfer(sx126x_bus_t *bus, const uint8_t *tx, size_t tx_len, uint8_t *rx, size_t rx_len)
 {
-  spi_transaction_t tran;
-  uint8_t *owned_tx;
-  uint8_t *owned_rx;
-  bool free_tx;
-  bool free_rx;
-} esp32_spi_command_t;
+  if (!bus || !(tx && !rx) || (tx_len == 0 && rx_len == 0))
+  {
+    return SX126X_ERR_INVALID_ARG;
+  }
 
-static sx126x_status_t esp32_spi_write(const uint8_t *data, size_t len)
-{
-  // TODO
-  return ESP_OK;
-}
+  sx126x_hal_esp32_t *hal = (sx126x_hal_esp32_t *)bus->ctx;
+  if (!hal || !hal->lora_handle)
+  {
+    return SX126X_ERR_INVALID_ARG;
+  }
 
-static sx126x_status_t esp32_spi_read(uint8_t *data, size_t len)
-{
-  // TODO
-  return ESP_OK;
+  size_t len = tx_len > rx_len ? tx_len : rx_len;
+
+  uint8_t dummy_tx[len];
+  const uint8_t *tx_buf = tx ? tx : dummy_tx;
+  if (!tx)
+  {
+    memset(dummy_tx, 0x00, len);
+  }
+
+  uint8_t dummy_rx[len];
+  uint8_t *rx_buf = rx ? rx : dummy_rx;
+
+  spi_transaction_t t = {
+    .length = len * 8,
+    .tx_buffer = tx_buf,
+    .rx_buffer = rx_buf,
+  };
+
+  xSemaphoreTake(hal->spi_mutex, portMAX_DELAY);
+  esp_err_t ret = spi_device_transmit(hal->lora_handle, &t);
+  xSemaphoreGive(hal->spi_mutex);
+
+  return (ret == ESP_OK) ? SX126X_OK : SX126X_ERR_IO;
 }
 
 static void esp32_log(const char *fmt, ...)
@@ -41,67 +58,13 @@ static void esp32_log(const char *fmt, ...)
   ESP_LOGI("ESP32", "%s", buf);
 }
 
-static void lora_spi_task(void *arg)
-{
-  sx126x_hal_esp32_t *hal = arg;
-  if (!hal)
-  {
-    return;
-  }
-
-  hal->bus.log("Starting SPI task...");
-
-  while (!hal->is_shutdown_requested)
-  {
-    spi_transaction_t *completed;
-    if (spi_device_get_trans_result(hal->lora_handle, &completed, pdMS_TO_TICKS(100)) == ESP_OK &&
-        completed)
-    {
-      esp32_spi_command_t *cmd = (esp32_spi_command_t *)completed->user;
-      if (cmd)
-      {
-        hal->bus.log("SPI result len %d", completed->length / 8);
-
-        if (cmd->free_tx && cmd->owned_tx)
-          heap_caps_free(cmd->owned_tx);
-
-        if (cmd->free_rx && cmd->owned_rx)
-          heap_caps_free(cmd->owned_rx);
-
-        heap_caps_free(cmd);
-      }
-    }
-    vTaskDelay(pdMS_TO_TICKS(1)); // short delay to yield CPU
-  }
-
-  // once shutdown is requested, drain any remaining transactions before exit
-  spi_transaction_t *completed;
-  while (spi_device_get_trans_result(hal->lora_handle, &completed, pdMS_TO_TICKS(10)) == ESP_OK)
-  {
-    esp32_spi_command_t *cmd = (esp32_spi_command_t *)completed->user;
-    if (cmd)
-    {
-      if (cmd->free_tx && cmd->owned_tx)
-        heap_caps_free(cmd->owned_tx);
-      if (cmd->free_rx && cmd->owned_rx)
-        heap_caps_free(cmd->owned_rx);
-      heap_caps_free(cmd);
-    }
-  }
-
-  hal->is_running = false;
-  vTaskDelete(NULL);
-
-  hal->bus.log("SPI task terminated.");
-}
-
 sx126x_status_t sx126x_hal_esp32_init(sx126x_hal_t *hal, const sx126x_hal_esp32_cfg_t *cfg)
 {
   memset(hal, 0, sizeof(*hal));
 
-  hal->bus.write = esp32_spi_write;
-  hal->bus.read = esp32_spi_read;
+  hal->bus.transfer = esp32_spi_transfer;
   hal->bus.log = esp32_log;
+  hal->bus.ctx = hal;
 
   hal->bus.log("Initializing SPI...");
 
@@ -140,24 +103,39 @@ sx126x_status_t sx126x_hal_esp32_init(sx126x_hal_t *hal, const sx126x_hal_esp32_
     return SX126X_ERR_UNKNOWN;
   }
 
+  hal->spi_host = cfg->spi_host;
   hal->is_shutdown_requested = false;
   hal->is_running = true;
-
-  if (xTaskCreate(
-          lora_spi_task, "lora_spi_task", 2048, hal, tskIDLE_PRIORITY + 1, &hal->spi_task_handle) !=
-      pdPASS)
-  {
-    hal->bus.log("Failed to create SPI task.");
-    return SX126X_ERR_UNKNOWN;
-  }
-
   hal->bus.log("SPI initialized successfully.");
+
   return SX126X_OK;
 }
 
 sx126x_status_t sx126x_hal_esp32_deinit(sx126x_hal_t *hal)
 {
-  // TODO
+  if (!hal)
+  {
+    return SX126X_ERR_INVALID_ARG;
+  }
+
+  hal->is_shutdown_requested = true;
+
+  if (hal->lora_handle)
+  {
+    spi_bus_remove_device(hal->lora_handle);
+    hal->lora_handle = NULL;
+  }
+
+  spi_bus_free(hal->spi_host);
+
+  if (hal->spi_mutex)
+  {
+    vSemaphoreDelete(hal->spi_mutex);
+    hal->spi_mutex = NULL;
+  }
+
+  memset(hal, 0, sizeof(*hal));
+
   return SX126X_OK;
 }
 
