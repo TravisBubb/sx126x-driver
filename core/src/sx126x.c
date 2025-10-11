@@ -20,6 +20,7 @@ static const uint32_t SX126X_FREQ_XTAL_HZ = 32000000; // 32 MHz
 // Opcodes for the SX126x-class chip.
 typedef enum
 {
+  SX126X_OP_SET_DIO_IRQ_PARAMS = 0x08,
   SX126X_OP_READ_REGISTER = 0x1D,
   SX126X_OP_SET_STANDBY = 0x80,
   SX126X_OP_SET_RF_FREQUENCY = 0x86,
@@ -44,6 +45,25 @@ typedef enum
   SX126X_PACKET_TYPE_LR_FHSS = 0x03,
 } sx126x_packet_type_t;
 
+// IRQs
+typedef enum
+{
+  SX126X_IRQ_TX_DONE = (1 << 0),
+  SX126X_IRQ_RX_DONE = (1 << 1),
+  SX126X_IRQ_PREAMBLE_DETECTED = (1 << 2),
+  SX126X_IRQ_SYNC_WORD_VALID = (1 << 3),
+  SX126X_IRQ_HEADER_VALID = (1 << 4),
+  SX126X_IRQ_HEADER_ERR = (1 << 5),
+  SX126X_IRQ_CRC_ERR = (1 << 6),
+  SX126X_IRQ_CAD_DONE = (1 << 7),
+  SX126X_IRQ_CAD_DETECTED = (1 << 8),
+  SX126X_IRQ_TIMEOUT = (1 << 9),
+  SX126X_IRQ_LR_FHSS_HOP = (1 << 14),
+
+  SX126X_IRQ_NONE = 0x0000,
+  SX126X_IRQ_ALL = 0xFFFF,
+} sx126x_irq_t;
+
 // Configuratin values for PA.
 typedef struct
 {
@@ -64,6 +84,8 @@ static sx126x_status_t sx126x_set_lora_modulation_params(sx126x_t *dev,
                                                          sx126x_lora_bandwidth_t bw,
                                                          sx126x_lora_coding_rate_t cr,
                                                          bool ldro);
+static sx126x_status_t sx126x_set_dio_irq_params(
+    sx126x_t *dev, uint16_t irq_mask, uint16_t dio1_mask, uint16_t dio2_mask, uint16_t dio3_mask);
 
 static sx126x_status_t
 sx126x_get_pa_configuration(sx126x_t *dev, sx126x_pa_profile_t profile, sx126x_pa_config_t *cfg);
@@ -83,7 +105,7 @@ sx126x_status_t sx126x_init(sx126x_t *dev, sx126x_bus_t *bus, sx126x_config_t *c
     return SX126X_ERR_INVALID_ARG;
   }
 
-  if (!bus->transfer || !bus->log)
+  if (!bus->transfer)
   {
     return SX126X_ERR_INVALID_ARG;
   }
@@ -91,6 +113,7 @@ sx126x_status_t sx126x_init(sx126x_t *dev, sx126x_bus_t *bus, sx126x_config_t *c
   memset(dev, 0, sizeof(*dev));
   dev->bus = bus;
   dev->chip = cfg->chip;
+  dev->state = SX126X_STATE_INIT;
 
   sx126x_status_t st;
 
@@ -158,17 +181,6 @@ sx126x_status_t sx126x_init(sx126x_t *dev, sx126x_bus_t *bus, sx126x_config_t *c
     return SX126X_ERR_INVALID_ARG;
   }
 
-  // TODO - chip initialization
-  // [X] 1. `SetStandby(...)`: go to STDBY_RC mode if not already there
-  // [X] 2. `SetPacketType(...)`: select LoRa protocol instead of FSK
-  // [X] 3. `SetRfFrequency(...)`: set the RF frequency
-  // [X] 4. `SetPaConfig(...)`: define Power Amplifier configuration
-  // [X] 5. `SetTxParams(...)`: define output power and ramping time
-  // [X] 6. `SetModulationParams(...)`: SF, BW, CR (LoRa)
-  // [ ] 7. `SetPacketParams(...)`: preamble, header mode, CRC, payload length mode
-  // [ ] 8. `SetDioIrqParams(...)`: map `TxDone`/`RxDone` to DIO pins
-  // [ ] 9. `WriteReg(...)`: for SyncWord if a non-default is needed
-
   dev->is_initialized = true;
 
   SX126X_LOG(bus,
@@ -184,6 +196,8 @@ sx126x_status_t sx126x_init(sx126x_t *dev, sx126x_bus_t *bus, sx126x_config_t *c
              cfg->lora_cr,
              cfg->lora_ldro);
 
+  dev->state = SX126X_STATE_STANDBY;
+
   return SX126X_OK;
 }
 
@@ -194,6 +208,8 @@ sx126x_status_t sx126x_deinit(sx126x_t *dev)
   {
     return SX126X_ERR_INVALID_ARG;
   }
+
+  dev->state = SX126X_STATE_DEINIT;
 
   if (dev->is_initialized)
   {
@@ -383,7 +399,34 @@ static sx126x_status_t sx126x_set_lora_modulation_params(sx126x_t *dev,
     return SX126X_ERR_INVALID_ARG;
   }
 
-  uint8_t tx[] = {SX126X_OP_SET_MODULATION_PARAMS, sf, bw, cr, ldro};
+  uint8_t tx[] = {SX126X_OP_SET_MODULATION_PARAMS, sf, bw, cr, (uint8_t)(ldro ? 0x01 : 0x00)};
+
+  return dev->bus->transfer(dev->bus, tx, sizeof(tx), NULL, 0);
+}
+
+static sx126x_status_t sx126x_set_dio_irq_params(
+    sx126x_t *dev, uint16_t irq_mask, uint16_t dio1_mask, uint16_t dio2_mask, uint16_t dio3_mask)
+{
+  if (!dev || !dev->bus || !dev->bus->transfer)
+  {
+    return SX126X_ERR_INVALID_ARG;
+  }
+
+  uint8_t tx[] = {
+    SX126X_OP_SET_DIO_IRQ_PARAMS, 
+
+    (irq_mask >> 8) & 0xFF,
+    irq_mask & 0xFF,
+
+    (dio1_mask >> 8) & 0xFF,
+    dio1_mask & 0xFF,
+
+    (dio2_mask >> 8) & 0xFF,
+    dio2_mask & 0xFF,
+
+    (dio3_mask >> 8) & 0xFF,
+    dio3_mask & 0xFF,
+  };
 
   return dev->bus->transfer(dev->bus, tx, sizeof(tx), NULL, 0);
 }

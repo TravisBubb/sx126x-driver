@@ -14,6 +14,17 @@
 #include "sx126x/types.h"
 
 /**
+ * @brief SX126X state.
+ */
+typedef enum {
+  SX126X_STATE_INIT = 0,
+  SX126X_STATE_DEINIT,
+  SX126X_STATE_STANDBY,
+  SX126X_STATE_TX,
+  SX126X_STATE_RX,
+} sx126x_state_t;
+
+/**
  * @brief SX126X chip variant.
  */
 typedef enum
@@ -127,6 +138,7 @@ typedef struct
 typedef struct
 {
   bool is_initialized;
+  sx126x_state_t state;
   sx126x_bus_t *bus;
   sx126x_chip_variant_t chip;
   sx126x_pa_profile_t pa_profile;
