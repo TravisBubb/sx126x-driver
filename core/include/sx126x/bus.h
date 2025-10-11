@@ -14,14 +14,18 @@
 #include <stddef.h>
 #include <stdint.h>
 
+// Forward declaration
+typedef struct sx126x_bus_t sx126x_bus_t;
+
 /**
  * @brief Represents a message bus for the SX126x.
  */
-typedef struct
+struct sx126x_bus_t
 {
-  sx126x_status_t (*write)(const uint8_t *data, size_t len);
-  sx126x_status_t (*read)(uint8_t *data, size_t len);
+  sx126x_status_t (*transfer)(
+      sx126x_bus_t *bus, const uint8_t *tx, size_t tx_len, uint8_t *rx, size_t rx_len);
   void (*log)(const char *fmt, ...);
-} sx126x_bus_t;
+  void *ctx;
+};
 
 #endif // SX126X_BUS_H

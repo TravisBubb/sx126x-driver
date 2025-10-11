@@ -21,6 +21,7 @@ typedef enum
   SX126X_ERR_TIMEOUT,
   SX126X_ERR_NO_MEM,
   SX126X_ERR_HAL,      /* underlying HAL reported an error */
+  SX126X_ERR_IO, /* IO error*/
   SX126X_ERR_NOT_INIT, /* driver not initialized */
   SX126X_ERR_UNKNOWN,
 } sx126x_status_t;
