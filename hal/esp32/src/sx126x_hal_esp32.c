@@ -2,7 +2,6 @@
 
 #include "freertos/FreeRTOS.h"
 #include "sx126x/bus.h"
-#include "sx126x/config.h"
 #include "sx126x/hal_esp32.h"
 #include "sx126x/sx126x.h"
 #include <driver/spi_master.h>

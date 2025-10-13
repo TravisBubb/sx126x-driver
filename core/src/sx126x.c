@@ -2,18 +2,12 @@
 
 #include "sx126x/sx126x.h"
 #include "sx126x/bus.h"
+#include "sx126x/log.h"
 #include "sx126x/types.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
-
-#define SX126X_LOG(bus, fmt, ...)                                                                  \
-  do                                                                                               \
-  {                                                                                                \
-    if ((bus) && (bus)->log)                                                                       \
-      (bus)->log(fmt, ##__VA_ARGS__);                                                              \
-  } while (0)
 
 static const uint32_t SX126X_FREQ_XTAL_HZ = 32000000; // 32 MHz
 
@@ -93,7 +87,7 @@ sx126x_get_pa_configuration(sx126x_t *dev, sx126x_pa_profile_t profile, sx126x_p
 // Initialize the given radio instance
 sx126x_status_t sx126x_init(sx126x_t *dev, sx126x_bus_t *bus, sx126x_config_t *cfg)
 {
-  SX126X_LOG(bus, "Initializing SX126x driver...");
+  SX126X_LOG_INFO(bus, "Initializing SX126x driver...");
 
   if (!dev || !bus || !cfg)
   {
@@ -117,73 +111,73 @@ sx126x_status_t sx126x_init(sx126x_t *dev, sx126x_bus_t *bus, sx126x_config_t *c
 
   sx126x_status_t st;
 
-  SX126X_LOG(bus, "Setting RC standby mode...");
+  SX126X_LOG_INFO(bus, "Setting RC standby mode...");
   st = sx126x_set_standby(dev, SX126X_STBY_RC);
   if (st != SX126X_OK)
   {
-    SX126X_LOG(bus, "Failed to set RC standby mode.");
+    SX126X_LOG_ERROR(bus, "Failed to set RC standby mode.");
     return st;
   }
-  SX126X_LOG(bus, "RC standby mode has been set.");
+  SX126X_LOG_INFO(bus, "RC standby mode has been set.");
 
-  SX126X_LOG(bus, "Setting packet type...");
+  SX126X_LOG_INFO(bus, "Setting packet type...");
   st = sx126x_set_packet_type(dev, cfg->modem);
   if (st != SX126X_OK)
   {
-    SX126X_LOG(bus, "Failed to set packet type.");
+    SX126X_LOG_ERROR(bus, "Failed to set packet type.");
     return st;
   }
-  SX126X_LOG(bus, "Packet type has been set using modem %d.", cfg->modem);
+  SX126X_LOG_INFO(bus, "Packet type has been set using modem %d.", cfg->modem);
 
-  SX126X_LOG(bus, "Setting RF frequency...");
+  SX126X_LOG_INFO(bus, "Setting RF frequency...");
   st = sx126x_set_frequency(dev, cfg->frequency_hz);
   if (st != SX126X_OK)
   {
-    SX126X_LOG(bus, "Failed to set RF frequency.");
+    SX126X_LOG_ERROR(bus, "Failed to set RF frequency.");
     return st;
   }
-  SX126X_LOG(bus, "RF frequency set to %dhz.", cfg->frequency_hz);
+  SX126X_LOG_INFO(bus, "RF frequency set to %dhz.", cfg->frequency_hz);
 
-  SX126X_LOG(bus, "Setting PA profile...");
+  SX126X_LOG_INFO(bus, "Setting PA profile...");
   st = sx126x_set_pa_profile(dev, cfg->pa_profile);
   if (st != SX126X_OK)
   {
-    SX126X_LOG(bus, "Failed to set PA profile.");
+    SX126X_LOG_ERROR(bus, "Failed to set PA profile.");
     return st;
   }
-  SX126X_LOG(bus, "PA profile %d has been set.", cfg->pa_profile);
+  SX126X_LOG_INFO(bus, "PA profile %d has been set.", cfg->pa_profile);
 
-  SX126X_LOG(bus, "Setting TX params...");
+  SX126X_LOG_INFO(bus, "Setting TX params...");
   st = sx126x_set_tx_params(dev, cfg->power_dbm, cfg->power_ramp_time);
   if (st != SX126X_OK)
   {
-    SX126X_LOG(bus, "Failed to set TX params.");
+    SX126X_LOG_ERROR(bus, "Failed to set TX params.");
     return st;
   }
-  SX126X_LOG(bus, "TX params set.");
+  SX126X_LOG_INFO(bus, "TX params set.");
 
   if (cfg->modem == SX126X_MODEM_LORA)
   {
-    SX126X_LOG(bus, "Setting LoRa modulation params...");
+    SX126X_LOG_INFO(bus, "Setting LoRa modulation params...");
     st = sx126x_set_lora_modulation_params(
         dev, cfg->lora_sf, cfg->lora_bw, cfg->lora_cr, cfg->lora_ldro);
     if (st != SX126X_OK)
     {
-      SX126X_LOG(bus, "Failed to set LoRa modulation params.");
+      SX126X_LOG_ERROR(bus, "Failed to set LoRa modulation params.");
       return st;
     }
-    SX126X_LOG(bus, "LoRa modulation params set.");
+    SX126X_LOG_INFO(bus, "LoRa modulation params set.");
   }
   else
   {
     // !NOTE: Only the LoRa modem is supported at this time.
-    SX126X_LOG(bus, "Error: Only the LoRa modem is supported at this time.");
+    SX126X_LOG_ERROR(bus, "Only the LoRa modem is supported at this time.");
     return SX126X_ERR_INVALID_ARG;
   }
 
   dev->is_initialized = true;
 
-  SX126X_LOG(bus,
+  SX126X_LOG_INFO(bus,
              "SX126x init complete: chip=%d, freq=%lu Hz, PA=%d, pwr=%ddBm, pwr_ramp_time=%d, "
              "sf=%d, bw=%d, cr=%d, ldro=%d.",
              dev->chip,
@@ -219,7 +213,7 @@ sx126x_status_t sx126x_deinit(sx126x_t *dev)
       sx126x_status_t st = sx126x_set_standby(dev, SX126X_STBY_RC);
       if (st != SX126X_OK)
       {
-        SX126X_LOG(dev->bus, "Warning: Failed to set standby during deinit.");
+        SX126X_LOG_WARN(dev->bus, "Failed to set standby during deinit.");
       }
     }
 
@@ -227,6 +221,49 @@ sx126x_status_t sx126x_deinit(sx126x_t *dev)
     dev->is_initialized = false;
     dev->bus = NULL;
   }
+
+  return SX126X_OK;
+}
+
+// Transmit a message using the configured sx126x_t
+sx126x_status_t sx126x_transmit(sx126x_t *dev, const uint8_t *tx_buffer, size_t tx_len)
+{
+  if (!dev)
+  {
+    return SX126X_ERR_INVALID_ARG;
+  }
+
+  if (!dev->is_initialized || !dev->bus || !dev->bus->transfer)
+  {
+    return SX126X_ERR_NOT_INIT;
+  }
+
+  sx126x_status_t st;
+
+  SX126X_LOG_INFO(dev->bus, "Starting transmit sequence...");
+
+  st = sx126x_set_standby(dev, SX126X_STBY_RC);
+  if (st != SX126X_OK)
+  {
+    SX126X_LOG_ERROR(dev->bus, "Failed to set STDBY_RC mode.");
+    return SX126X_ERR_UNKNOWN;
+  }
+
+  // TODO
+
+  // 1. [ ] Switch to STDBY_RC mode
+  // 2. [ ] Define where the payload is stored with `SetBufferBaseAddress()`
+  // 3. [ ] Send the payload to the data buffer with `WriteBuffer()`
+  // 4. [ ] Define the frame format to be used with `SetPacketParams()`
+  // 5. [ ] Configure DIO and IRQ with `SetDioIrqParams()`, select TxDone map IRQ to a DIO
+  // 6. [ ] Define sync word value with `WriteReg()`
+  // 7. [ ] Set the device to transmitter mode to start the transmission with `SetTx()`; use the
+  // parameter to enable Timeout
+  // 8. [ ] Wait for TxDone or Timeout; once the packet has been sent the chip automatically goes to
+  // STDBY_RC mode
+  // 9. [ ] Clear the IRQ TxDone/Timeout flag
+
+  SX126X_LOG_INFO(dev->bus, "Transmit sequence complete.");
 
   return SX126X_OK;
 }
@@ -413,19 +450,19 @@ static sx126x_status_t sx126x_set_dio_irq_params(
   }
 
   uint8_t tx[] = {
-    SX126X_OP_SET_DIO_IRQ_PARAMS, 
+      SX126X_OP_SET_DIO_IRQ_PARAMS,
 
-    (irq_mask >> 8) & 0xFF,
-    irq_mask & 0xFF,
+      (irq_mask >> 8) & 0xFF,
+      irq_mask & 0xFF,
 
-    (dio1_mask >> 8) & 0xFF,
-    dio1_mask & 0xFF,
+      (dio1_mask >> 8) & 0xFF,
+      dio1_mask & 0xFF,
 
-    (dio2_mask >> 8) & 0xFF,
-    dio2_mask & 0xFF,
+      (dio2_mask >> 8) & 0xFF,
+      dio2_mask & 0xFF,
 
-    (dio3_mask >> 8) & 0xFF,
-    dio3_mask & 0xFF,
+      (dio3_mask >> 8) & 0xFF,
+      dio3_mask & 0xFF,
   };
 
   return dev->bus->transfer(dev->bus, tx, sizeof(tx), NULL, 0);
